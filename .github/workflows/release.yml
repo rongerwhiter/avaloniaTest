@@ -71,9 +71,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Windows-AOT-Setup
-          path: |
-            *.exe
-            ./publish/win-x64/*.exe
+          path: .
+          exclude: vs_BuildTools.exe
 
   auto-release:
     needs: build-windows
