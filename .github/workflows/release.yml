@@ -93,9 +93,7 @@ jobs:
             throw "NSIS not found"
           }
 
-          $env:APP_VERSION = "${{ needs.version.outputs.version }}"
-
-          & $makensis installer_win.nsi
+          & $makensis /DAPP_VERSION="${{ needs.version.outputs.version }}" installer_win.nsi
 
       # =========================
       # Clean Output (商业级关键)
