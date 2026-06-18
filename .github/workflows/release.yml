@@ -1,14 +1,11 @@
 # @format
 
 name: Build Windows AOT Installer
-
-# 触发：推送v开头tag / 手动运行
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
-
 permissions:
   contents: write
 
@@ -19,29 +16,23 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # 安装.NET 10
       - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      # 安装VC++编译工具(AOT必需) + NSIS
       - name: Install VC++ BuildTools & NSIS
         run: |
           choco install -y nsis
-          # 静默安装VS2022构建工具 C++桌面负载
           Invoke-WebRequest https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile vs_BuildTools.exe
           .\vs_BuildTools.exe --quiet --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows10SDK.19041 --norestart
-          # 刷新环境变量，让当前shell识别新安装程序
           refreshenv
 
-      # 还原项目依赖
       - name: Restore workload & nuget
         run: |
           dotnet workload install microsoft-net-sdk-desktop
           dotnet restore
 
-      # AOT发布win-x64
       - name: Publish Windows AOT
         run: |
           dotnet publish -c Release -r win-x64 `
@@ -50,12 +41,11 @@ jobs:
             -p:PublishAot=true `
             -o ./publish/win-x64
 
-      # 使用完整路径调用makensis，彻底解决命令找不到
+      # 修复PowerShell调用exe传参语法，用&调用
       - name: Build NSIS Setup.exe
         run: |
-          "C:\Program Files\NSIS\makensis.exe" installer_win.nsi
+          & "C:\Program Files\NSIS\makensis.exe" installer_win.nsi
 
-      # 上传安装包到CI产物
       - name: Upload Windows Installer Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -64,7 +54,6 @@ jobs:
             *.exe
             ./publish/win-x64/*.exe
 
-  # 自动创建Release并上传Windows安装包
   auto-release:
     needs: build-windows
     runs-on: ubuntu-latest
