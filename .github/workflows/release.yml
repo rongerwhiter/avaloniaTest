@@ -1,94 +1,148 @@
 # @format
 
-name: Build Windows AOT Installer
+name: Windows AOT Enterprise Release
+
 on:
   push:
     tags:
       - "v*"
+
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to publish, for example v1.0.0"
+        description: "v1.0.0"
         required: true
         type: string
+
 permissions:
   contents: write
 
+env:
+  PROJECT_NAME: AvaloniaApplication1
+  RUNTIME: win-x64
+  CONFIG: Release
+
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  # =========================
+  # 1. Version Job（统一版本源）
+  # =========================
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+
     steps:
-      - name: Checkout source
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG=${{ inputs.release_tag }}
+          else
+            TAG=${GITHUB_REF_NAME}
+          fi
+
+          VERSION=${TAG#v}
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  # =========================
+  # 2. Build Job
+  # =========================
+  build:
+    needs: version
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 10 SDK
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      - name: Install VC++ BuildTools & NSIS
-        run: |
-          choco install -y nsis
-          Invoke-WebRequest https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile vs_BuildTools.exe
-          .\vs_BuildTools.exe --quiet --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows10SDK.19041 --norestart
+      - name: Install NSIS
+        run: choco install nsis -y
 
-      - name: Restore workload & nuget
-        run: |
-          dotnet workload install microsoft-net-sdk-desktop
-          dotnet restore
+      - name: Restore
+        run: dotnet restore
 
-      - name: Publish Windows AOT
+      # =========================
+      # AOT Build（唯一产物）
+      # =========================
+      - name: Publish AOT
         run: |
-          dotnet publish -c Release -r win-x64 `
+          dotnet publish -c $env:CONFIG -r $env:RUNTIME `
             --self-contained true `
-            -p:PublishSingleFile=true `
             -p:PublishAot=true `
-            -o ./publish/win-x64
+            -p:PublishSingleFile=true `
+            -p:Version=${{ needs.version.outputs.version }} `
+            -o build/aot
 
-      - name: Build NSIS Setup.exe
+      # =========================
+      # Inject Version into NSIS
+      # =========================
+      - name: Build installer
+        shell: pwsh
         run: |
-          $makensis = (Get-Command makensis.exe -ErrorAction SilentlyContinue).Source
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
 
-          if (-not $makensis) {
-            $candidates = @(
-              "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
-              "${env:ProgramFiles}\NSIS\makensis.exe"
-              "C:\ProgramData\chocolatey\bin\makensis.exe"
-              "C:\ProgramData\chocolatey\lib\nsis\tools\makensis.exe"
-            )
-
-            $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (!(Test-Path $makensis)) {
+            throw "NSIS not found"
           }
 
-          if (-not $makensis) {
-            Write-Error "makensis.exe was not found after NSIS installation."
-            exit 1
-          }
+          $env:APP_VERSION = "${{ needs.version.outputs.version }}"
 
           & $makensis installer_win.nsi
 
-      - name: Upload Windows Installer Artifact
+      # =========================
+      # Clean Output (商业级关键)
+      # =========================
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+
+          $app = Get-ChildItem build/aot -Filter *.exe | Select-Object -First 1
+
+          Copy-Item $app.FullName dist/AvaloniaApplication1.exe
+          Copy-Item *.exe dist/AvaloniaApp_Setup.exe
+
+          # 生成 hash（企业级）
+          Get-FileHash dist/*.exe -Algorithm SHA256 |
+            Out-File dist/checksums.txt
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-AOT-Setup
-          path: .
-          exclude: vs_BuildTools.exe
+          name: enterprise-release
+          path: dist/*
 
-  auto-release:
-    needs: build-windows
+  # =========================
+  # 3. Release Job
+  # =========================
+  release:
+    needs: [version, build]
     runs-on: ubuntu-latest
+
     steps:
-      - name: Download Windows installer artifact
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          path: ./win_package
+          name: enterprise-release
+          path: dist
 
-      - name: Create Release & Attach Windows exe
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag || github.ref_name }}
-          target_commitish: ${{ github.sha }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: "${{ needs.version.outputs.tag }}"
+          files: |
+            dist/AvaloniaApplication1.exe
+            dist/AvaloniaApp_Setup.exe
+            dist/checksums.txt
           generate_release_notes: true
-          files: ./win_package/**/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
