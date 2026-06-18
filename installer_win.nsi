@@ -31,7 +31,7 @@ Section "Main"
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
 
   ; 桌面快捷方式（修复参数，移除末尾非法0）
-  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_NAME}.exe" "" "${APP_NAME}" "$INSTDIR\${APP_NAME}.exe,0"
+  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_NAME}.exe" "" "$INSTDIR\${APP_NAME}.exe" 0
   ; 软件启动快捷方式
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_NAME}.exe" "" "${APP_NAME}" "$INSTDIR\${APP_NAME}.exe,0"
   ; 卸载快捷方式
