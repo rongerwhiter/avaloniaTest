@@ -40,11 +40,26 @@ jobs:
             -p:PublishAot=true `
             -o ./publish/win-x64
 
-      # 固定路径直接调用makensis，绕开PATH环境变量问题
       - name: Build NSIS Setup.exe
         run: |
-          $nsisRoot = "C:\ProgramData\chocolatey\lib\nsis\tools"
-          $makensis = Join-Path $nsisRoot "makensis.exe"
+          $makensis = (Get-Command makensis.exe -ErrorAction SilentlyContinue).Source
+
+          if (-not $makensis) {
+            $candidates = @(
+              "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+              "${env:ProgramFiles}\NSIS\makensis.exe"
+              "C:\ProgramData\chocolatey\bin\makensis.exe"
+              "C:\ProgramData\chocolatey\lib\nsis\tools\makensis.exe"
+            )
+
+            $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+
+          if (-not $makensis) {
+            Write-Error "makensis.exe was not found after NSIS installation."
+            exit 1
+          }
+
           & $makensis installer_win.nsi
 
       - name: Upload Windows Installer Artifact
