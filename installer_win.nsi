@@ -8,7 +8,7 @@ RequestExecutionLevel admin
 Page Components
 Page Directory
 Page InstFiles
-Page UninstFiles
+UninstPage instfiles
 
 Section "Main Program" SEC01
   SetOutPath "$INSTDIR"
