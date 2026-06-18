@@ -40,12 +40,12 @@ jobs:
             -p:PublishAot=true `
             -o ./publish/win-x64
 
-      # 修复：加载choco环境，刷新PATH后直接调用makensis
+      # 固定路径直接调用makensis，绕开PATH环境变量问题
       - name: Build NSIS Setup.exe
         run: |
-          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
-          refreshenv
-          makensis installer_win.nsi
+          $nsisRoot = "C:\ProgramData\chocolatey\lib\nsis\tools"
+          $makensis = Join-Path $nsisRoot "makensis.exe"
+          & $makensis installer_win.nsi
 
       - name: Upload Windows Installer Artifact
         uses: actions/upload-artifact@v4
