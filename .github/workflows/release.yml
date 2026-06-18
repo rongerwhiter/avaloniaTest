@@ -26,7 +26,6 @@ jobs:
           choco install -y nsis
           Invoke-WebRequest https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile vs_BuildTools.exe
           .\vs_BuildTools.exe --quiet --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows10SDK.19041 --norestart
-          refreshenv
 
       - name: Restore workload & nuget
         run: |
@@ -41,10 +40,12 @@ jobs:
             -p:PublishAot=true `
             -o ./publish/win-x64
 
-      # 修复PowerShell调用exe传参语法，用&调用
+      # 修复：加载choco环境，刷新PATH后直接调用makensis
       - name: Build NSIS Setup.exe
         run: |
-          & "C:\Program Files\NSIS\makensis.exe" installer_win.nsi
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          refreshenv
+          makensis installer_win.nsi
 
       - name: Upload Windows Installer Artifact
         uses: actions/upload-artifact@v4
