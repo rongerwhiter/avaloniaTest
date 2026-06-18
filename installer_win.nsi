@@ -1,4 +1,4 @@
-; ===================== 全局编译配置（仅定义，不能放WriteRegStr/File/CreateShortCut） =====================
+; ===================== 全局编译配置 =====================
 OutFile "AvaloniaApp_Setup.exe"
 !define APP_ICON "Assets\avalonia-logo.ico"
 Icon "${APP_ICON}"
@@ -23,17 +23,19 @@ Page InstFiles
 UninstPage uninstConfirm
 UninstPage instfiles
 
-; ===================== 安装主区块：所有操作命令放这里 =====================
+; ===================== 安装主区块 =====================
 Section "Main Program" SEC01
   SetOutPath "$INSTDIR"
   File /r "publish\win-x64\*"
 
-  ; 快捷方式
-  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\AvaloniaApplication1.exe" "" "${APP_NAME} 桌面快捷方式" "$INSTDIR\AvaloniaApplication1.exe" 0
-  CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\AvaloniaApplication1.exe" "" "${APP_NAME}" "$INSTDIR\AvaloniaApplication1.exe" 0
-  CreateShortCut "$SMPROGRAMS\${APP_NAME}\卸载 ${APP_NAME}.lnk" "$UNINSTEXE" "" "卸载 ${APP_NAME}" "$UNINSTEXE" 0
+  ; 桌面快捷方式，修正参数，删掉末尾多余0
+  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\AvaloniaApplication1.exe" "" "${APP_NAME} 桌面快捷方式" "$INSTDIR\AvaloniaApplication1.exe"
+  ; 开始菜单程序快捷方式
+  CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\AvaloniaApplication1.exe" "" "${APP_NAME}" "$INSTDIR\AvaloniaApplication1.exe"
+  ; 卸载快捷方式
+  CreateShortCut "$SMPROGRAMS\${APP_NAME}\卸载 ${APP_NAME}.lnk" "$UNINSTEXE" "" "卸载 ${APP_NAME}" "$UNINSTEXE"
 
-  ; 注册表全部移到Section内部
+  ; 注册表
   WriteRegStr HKLM "Software\${APP_PUBLISHER}\${APP_NAME}" "Version" "${APP_VERSION}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayVersion" "${APP_VERSION}"
