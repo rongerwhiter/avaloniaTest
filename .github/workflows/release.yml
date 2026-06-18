@@ -1,0 +1,125 @@
+# @format
+
+name: Avalonia Cross Build & Installer
+
+# 触发条件：推送tag（v开头）、手动点按钮运行
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: # 支持手动在仓库页面触发构建
+
+# 全局权限，用于自动发布Release
+permissions:
+  contents: write
+
+jobs:
+  # Windows 任务：AOT编译 + NSIS打包安装程序
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      # 1. 安装 .NET 10 SDK
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # 2. 安装 VS C++ 构建工具（AOT必须link.exe）+ NSIS打包工具
+      - name: Install VC++ Build Tools & NSIS
+        run: |
+          choco install -y nsis
+          # 安装桌面C++工作负载，静默安装
+          Invoke-WebRequest https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile vs_BuildTools.exe
+          .\vs_BuildTools.exe --quiet --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows10SDK.19041 --norestart
+
+      # 3. 还原项目依赖与桌面工作负载
+      - name: Restore dependencies
+        run: |
+          dotnet workload install microsoft-net-sdk-desktop
+          dotnet restore
+
+      # 4. Native AOT 发布 win-x64
+      - name: Publish Windows AOT
+        run: |
+          dotnet publish -c Release -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:PublishAot=true `
+            -o ./publish/win-x64
+
+      # 5. NSIS 编译 Setup.exe 安装包
+      - name: Build NSIS Installer
+        run: makensis installer_win.nsi
+
+      # 6. 上传安装包与便携程序作为工件
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-AOT-Installer
+          path: |
+            *.exe
+            ./publish/win-x64/*.exe
+
+  # Linux 打包（非AOT，Linux AOT可在本任务开启PublishAot=true）
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - run: dotnet workload install microsoft-net-sdk-desktop
+      - run: dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o ./publish/linux-x64
+      - name: Zip Linux Binary
+        run: zip -r Linux-x64.zip ./publish/linux-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Linux-x64-Binary
+          path: Linux-x64.zip
+
+  # macOS 打包 DMG（仅Mac运行AOT）
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - run: dotnet workload install microsoft-net-sdk-desktop
+      - run: dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=false -p:PublishAot=true -o ./publish/mac-arm64
+      - name: Install create-dmg
+        run: brew install create-dmg
+      - name: Build DMG
+        run: |
+          mkdir -p build/App.app/Contents/MacOS
+          cp -r ./publish/mac-arm64/* build/App.app/Contents/MacOS/
+          chmod +x build/App.app/Contents/MacOS/AvaloniaApplication1
+          create-dmg --volname "App" --app-drop-link 350 120 App-mac.dmg build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-DMG
+          path: App-mac.dmg
+
+  # 全部构建完成后，自动创建Release并上传所有安装包
+  release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true # 自动生成更新日志
+          files: |
+            ./artifacts/**/*.exe
+            ./artifacts/**/*.zip
+            ./artifacts/**/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

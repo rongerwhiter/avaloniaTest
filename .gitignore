@@ -1,0 +1,25 @@
+# Ignore build output
+bin/
+obj/
+# Ignore user-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+# Ignore NuGet packages
+packages/
+# Ignore Visual Studio Code settings
+.vscode/
+# Ignore Rider settings
+.idea/
+# Ignore Mac-specific files
+.DS_Store
+*.swp
+*.swo
+# Ignore log files
+*.log
+# Ignore temporary files
+*.tmp
+*.temp
+# Ignore publish output
+publish/
