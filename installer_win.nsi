@@ -66,15 +66,20 @@ SectionEnd
 
 ; 完整卸载区块（补齐所有清理逻辑）
 Section "Uninstall"
-  ; 强制删除桌面快捷方式，不存在不报错
-  Delete /F "$DESKTOP\${APP_NAME}.lnk"
-  ; 删除整个开始菜单文件夹
+
+  ; 删除桌面快捷方式
+  Delete "$DESKTOP\${APP_NAME}.lnk"
+
+  ; 删除开始菜单
   RMDir /r "$SMPROGRAMS\${APP_NAME}"
-  ; 删除程序目录
+
+  ; 删除安装目录
   RMDir /r "$INSTDIR"
+
   ; 清理注册表
   DeleteRegKey /ifempty HKLM "Software\${APP_PUBLISHER}\${APP_NAME}"
   DeleteRegKey /ifempty HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
+
 SectionEnd
 
 ; 安装完成弹窗：是否启动程序
@@ -87,7 +92,7 @@ End:
 FunctionEnd
 
 ; 检测旧版本，防止直接覆盖损坏文件
-Function .onVerifyInstDir
+Function .onInit
   IfFileExists "$INSTDIR\${APP_NAME}.exe" 0 NoOldVer
   MessageBox MB_OKCANCEL "检测到已安装 ${APP_NAME} v${APP_VERSION}，继续安装将覆盖现有文件！" IDOK Continue IDCANCEL Abort
 Abort:
